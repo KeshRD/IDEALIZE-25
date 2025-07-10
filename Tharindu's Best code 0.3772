@@ -1,0 +1,185 @@
+import pandas as pd
+import numpy as np
+import warnings
+
+warnings.filterwarnings("ignore")
+
+# Load your dataset
+data = pd.read_csv("/kaggle/input/idealize-2025-datathon-competition/train.csv")
+
+# Load test_dataset
+x_test = pd.read_csv("/kaggle/input/idealize-2025-datathon-competition/test.csv")
+
+
+# 1st removing of the uneffective & less effective columns from dataset
+data = data.drop(columns=['record_id','first_name', 'last_name'])
+
+test_record = x_test["record_id"]
+# 1st removing of the uneffective & less effective columns from test_dataset
+x_test = x_test.drop(columns=['record_id','first_name', 'last_name'])
+
+
+
+def label_ages(age):
+    if(age<=30):
+        return "young"
+    elif(30<age<=50):
+        return "mid"
+    elif(50<age<=70):
+        return "senior"
+    else:return "elderly"
+
+data["patient_age_label"] = data["patient_age"].apply(label_ages)
+x_test["patient_age_label"] = x_test["patient_age"].apply(label_ages)
+
+
+# Convert dates to datetime (on data)
+def DateToDays_converter(date):
+    D = date.split("-")
+    y_d = (int(D[0][2]+D[0][3])-10)*365
+    m_d = int(D[1])*30
+    num_of_days = y_d + m_d + int(D[2])
+    return num_of_days
+
+data["diagnosis_date"] = data["diagnosis_date"].apply(DateToDays_converter)
+data["treatment_start_date"] = data["treatment_start_date"].apply(DateToDays_converter)
+data["treatment_end_date"] = data["treatment_end_date"].apply(DateToDays_converter)
+x_test["diagnosis_date"] = x_test["diagnosis_date"].apply(DateToDays_converter)
+x_test["treatment_start_date"] = x_test["treatment_start_date"].apply(DateToDays_converter)
+x_test["treatment_end_date"] = x_test["treatment_end_date"].apply(DateToDays_converter)
+
+
+
+data["Days_Diagnosis_TreatmentStart"] = data["treatment_start_date"] - data["diagnosis_date"]
+data["Days_Treatment_start_end"] = data["treatment_end_date"] - data["treatment_start_date"]
+data = data.drop(columns=["diagnosis_date","treatment_start_date","treatment_end_date"])
+x_test["Days_Diagnosis_TreatmentStart"] = x_test["treatment_start_date"] - x_test["diagnosis_date"]
+x_test["Days_Treatment_start_end"] = x_test["treatment_end_date"] - x_test["treatment_start_date"]
+x_test = x_test.drop(columns=["diagnosis_date","treatment_start_date","treatment_end_date"])
+
+
+
+
+# Fix missing cigarettes_per_day
+data['cigarettes_per_day'] = data['cigarettes_per_day'].fillna(0).astype(float)
+x_test['cigarettes_per_day'] = x_test['cigarettes_per_day'].fillna(0).astype(float)
+# Create BMI value feature
+data["bmi"] = data["weight_kg"]/((data["height_cm"]/100)**2)
+x_test["bmi"] = x_test["weight_kg"]/((x_test["height_cm"]/100)**2)
+def set_smk_status(input):
+    if(input=="Passive") or (input=="Non Smoker") or (input=="Former Smk"):
+        return "other"
+    else:return input
+
+data["smoking_status"] = data["smoking_status"].apply(set_smk_status)
+def liver_cond(condition):
+    if(condition=="Normal Liver") or (condition=="Cirrhos") or (condition=="Liver OK") or (condition=="No Issue"):
+        return "other"
+    else:return condition
+
+data["liver_condition"] = data["liver_condition"].apply(liver_cond)
+def set_BP(status):
+    if(status=="Normal BP"):
+        return "Normal"
+    else:return status
+data["blood_pressure_status"] = data["blood_pressure_status"].apply(set_BP)
+def set_treatment(type):
+    if(type=="Chemo") or (type=="Surg") or (type=="Combo"):
+        return "other"
+    else:return type
+
+data["treatment_type"] = data["treatment_type"].apply(set_treatment)
+def set_bin(input):
+    if (input=="Yes"):
+        return 1
+    elif (input=="No"):
+        return 0
+
+data["family_cancer_history"] = data["family_cancer_history"].apply(set_bin)
+data["has_other_cancer"] = data["has_other_cancer"].apply(set_bin)
+data["asthma_diagnosis"] = data["asthma_diagnosis"].apply(set_bin)
+x_test["family_cancer_history"] = x_test["family_cancer_history"].apply(set_bin)
+x_test["has_other_cancer"] = x_test["has_other_cancer"].apply(set_bin)
+x_test["asthma_diagnosis"] = x_test["asthma_diagnosis"].apply(set_bin)
+def set_sex(gender):
+    if (gender=="Male"):
+        return 1
+    else: return 0
+
+data["sex"] = data["sex"].apply(set_sex)
+x_test["sex"] = x_test["sex"].apply(set_sex)
+data = data.drop(columns=["patient_age","weight_kg","height_cm"])
+x_test = x_test.drop(columns=["patient_age","weight_kg","height_cm"])
+def residence_pairs(status):
+    if (status=="Vermont" or status=="New Hampshire" or status=="Maine" or status=="Rhode Island" or status=="Massachusetts" or status=="Connecticut"):
+        return "verm_NewHam_Maine_Rhode_Massa_Con"
+    elif (status=="New Jersey" or status=="Delaware" or status=="Pennsylvania" or status=="Maryland"):
+        return "NewJes_Del_Pennsyl_Mary"
+    elif (status=="Ohio" or status=="West Virginia"):
+        return "Ohio_WestVirginia"
+    elif (status=="Virginia" or status=="North Carolina" or status=="South Carolina"):
+        return "Virg_NorCar_SouCar"
+    elif (status=="Indiana" or status=="Illinois"):
+        return "Ind_Ill" 
+    elif (status=="Kentucky" or status=="Tennessee"):
+        return "Kentucky_Tennessee"   
+    elif (status=="Louisiana" or status=="Arkansas" or status=="Mississippi"):
+        return "Louis_Arkan_Missi" 
+    elif (status=="Alabama" or status=="Georgia"):
+        return "Alabama_Georgia"  
+    elif (status=="Wisconsin" or status=="Michigan"):
+        return "Wisconsin_Michigan"
+    else:
+        return status
+
+data["residence_state"] = data["residence_state"].apply(residence_pairs)
+x_test["residence_state"] = x_test["residence_state"].apply(residence_pairs)      
+# one hot encode features 
+data = pd.get_dummies(data)
+
+# Convert boolean to integer values
+data = data.fillna(0).astype(int)
+x = data.drop("survival_status", axis=1)
+y = data["survival_status"]
+!pip install imbalanced-learn
+
+
+
+
+
+
+from imblearn.over_sampling import RandomOverSampler
+oversampler = RandomOverSampler()
+x_over, y_over = oversampler.fit_resample(x,y)
+# Step 2: One-hot encode feature (on x_test)
+x_test = pd.get_dummies(x_test)
+
+
+# Step 3: Align x_test columns with training data columns
+x_test = x_test.reindex(columns=x_over.columns, fill_value=0)
+# Step 4: Convert boolean to integer values
+# Replace NaN with 0
+x_test = x_test.fillna(0).astype(int)
+
+
+
+from sklearn.ensemble import RandomForestClassifier
+model = RandomForestClassifier(n_estimators=50, criterion='entropy', random_state=42)
+model.fit(x_over,y_over)
+
+#from sklearn.model_selection import GridSearchCV
+#param_grid = {}
+
+#grid_search = GridSearchCV(estimator=model, param_grid=param_grid, n_jobs=-1)
+#grid_search.fit(x_smote,y_smote) 
+
+
+#grid_search.best_params_
+pred = model.predict(x_test)
+# Save Submission
+submission = pd.DataFrame({
+    'record_id': test_record,
+    'survival_status': pred.astype(int)
+})
+submission.to_csv("submission.csv", index=False)
+print("submission.csv saved")
